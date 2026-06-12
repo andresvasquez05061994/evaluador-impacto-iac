@@ -352,6 +352,12 @@ console.log('\n7. Informe Word (generateReportDocx.js)')
 
 const logoPath = path.join(__dirname, '..', 'public', 'logo-iac.png')
 const logoData = new Uint8Array(fs.readFileSync(logoPath))
+const fontsDir = path.join(__dirname, '..', 'public', 'fonts')
+const reportFonts = {
+  regular: new Uint8Array(fs.readFileSync(path.join(fontsDir, 'Poppins-Regular.ttf'))),
+  bold: new Uint8Array(fs.readFileSync(path.join(fontsDir, 'Poppins-Bold.ttf'))),
+  semibold: new Uint8Array(fs.readFileSync(path.join(fontsDir, 'Poppins-SemiBold.ttf'))),
+}
 
 const doc = createImpactReportDocument({
   orgName: 'Leonisa S.A.S.',
@@ -360,6 +366,7 @@ const doc = createImpactReportDocument({
   tRed: 70,
   eRed: 85,
   logoData,
+  reportFonts,
 })
 
 const buffer = await Packer.toBuffer(doc)
@@ -379,6 +386,11 @@ const checks = [
 for (const c of checks) {
   assertTrue(`DOCX contiene "${c}"`, docText.includes(c))
 }
+const headerEntry = zip.getEntries().find((e) => e.entryName.startsWith('word/header'))
+const headerXml = headerEntry ? headerEntry.getData().toString('utf8') : ''
+assertEq('Logo solo en encabezado (cuerpo sin imágenes)', (docXml.match(/<a:blip/g) ?? []).length, 0)
+assertEq('Logo presente en encabezado', (headerXml.match(/<a:blip/g) ?? []).length, 1)
+assertTrue('Poppins embebida en fontTable', zip.readAsText('word/fontTable.xml').includes('Poppins'))
 
 // ── 8. Módulo Descubrimiento ───────────────────────────────────
 console.log('\n8. Descubrimiento de automatización')

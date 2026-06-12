@@ -1,6 +1,7 @@
 import {
   AlignmentType,
   BorderStyle,
+  CharacterSet,
   Document,
   Footer,
   Header,
@@ -18,6 +19,7 @@ import {
 } from 'docx'
 import { buildReportData, fmtMoney, fmtNum, buildRoiInvestmentRows, buildOperationalParamsRows } from './reportContent.js'
 import { loadIacLogo, logoImageRun } from './loadIacLogo.js'
+import { loadReportFonts, REPORT_FONT, reportFont } from './loadReportFonts.js'
 import { renderEffortRadarChart } from './generateEffortRadarChart.js'
 
 const NAVY = '0F0F1A'
@@ -27,14 +29,14 @@ const MUTED = '6E6E7D'
 const WHITE = 'FFFFFF'
 const LIGHT_BG = 'F8F9FC'
 
-const FONT = 'Poppins'
-const BODY = 22
-const SMALL = 18
-const TITLE = 32
-const SUBTITLE = 24
+const FONT = REPORT_FONT
+const BODY = 18   // 9 pt ≈ 12 px (cuerpo plataforma)
+const SMALL = 16  // 8 pt — etiquetas secundarias
+const TITLE = 28  // 14 pt — título portada
+const SUBTITLE = 22 // 11 pt — subtítulos
 
 function run(text, opts = {}) {
-  return new TextRun({ text, font: FONT, size: opts.size ?? BODY, ...opts })
+  return new TextRun({ text, size: opts.size ?? BODY, ...reportFont(opts) })
 }
 
 function spacer(after = 120) {
@@ -219,10 +221,17 @@ function effortChartSection(chartPng, effortDimensions) {
   ]
 }
 
-export function createImpactReportDocument({ orgName, processDescription, d, tRed, eRed, logoData, effortChartPng }) {
+export function createImpactReportDocument({ orgName, processDescription, d, tRed, eRed, logoData, reportFonts, effortChartPng }) {
   const r = buildReportData({ orgName, processDescription, d, tRed, eRed })
 
+  const embeddedFonts = reportFonts ? [
+    { name: FONT, data: reportFonts.regular, characterSet: CharacterSet.ANSI },
+    { name: `${FONT}-Bold`, data: reportFonts.bold, characterSet: CharacterSet.ANSI },
+    { name: `${FONT}-SemiBold`, data: reportFonts.semibold, characterSet: CharacterSet.ANSI },
+  ] : []
+
   return new Document({
+    ...(embeddedFonts.length ? { fonts: embeddedFonts } : {}),
     numbering: {
       config: [{
         reference: 'iac-bullets',
@@ -232,6 +241,7 @@ export function createImpactReportDocument({ orgName, processDescription, d, tRe
           text: '\u2022',
           alignment: AlignmentType.LEFT,
           style: {
+            run: { ...reportFont(), size: BODY },
             paragraph: {
               indent: { left: 720, hanging: 360 },
             },
@@ -242,7 +252,7 @@ export function createImpactReportDocument({ orgName, processDescription, d, tRe
     styles: {
       default: {
         document: {
-          run: { font: FONT, size: BODY },
+          run: { ...reportFont(), size: BODY },
           paragraph: { spacing: { line: 276 } },
         },
       },
@@ -263,20 +273,16 @@ export function createImpactReportDocument({ orgName, processDescription, d, tRe
               alignment: AlignmentType.CENTER,
               children: [
                 run('Documento confidencial  |  Página ', { color: MUTED, size: 16 }),
-                new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: MUTED }),
+                new TextRun({ children: [PageNumber.CURRENT], ...reportFont({ size: 16, color: MUTED }) }),
               ],
             }),
           ],
         }),
       },
       children: [
-        // Portada
+        // Portada (logo solo en encabezado)
         new Paragraph({
-          spacing: { after: 160 },
-          children: [iacLogo(logoData)],
-        }),
-        new Paragraph({
-          spacing: { after: 120 },
+          spacing: { before: 120, after: 120 },
           children: [run('Informe Ejecutivo de Impacto', { bold: true, color: NAVY, size: TITLE })],
         }),
         new Paragraph({
@@ -418,9 +424,9 @@ export function createImpactReportDocument({ orgName, processDescription, d, tRe
 }
 
 export async function downloadImpactReportDocx(params) {
-  const logoData = await loadIacLogo()
+  const [logoData, reportFonts] = await Promise.all([loadIacLogo(), loadReportFonts()])
   const effortChartPng = await renderEffortRadarChart(params.d.effortDimensions)
-  const doc = createImpactReportDocument({ ...params, logoData, effortChartPng })
+  const doc = createImpactReportDocument({ ...params, logoData, reportFonts, effortChartPng })
   const { orgName } = params
   const blob = await Packer.toBlob(doc)
   const safeName = orgName.replace(/[^\w\s.-]/g, '').trim().replace(/\s+/g, '_') || 'informe'
