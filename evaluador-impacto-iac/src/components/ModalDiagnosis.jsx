@@ -190,11 +190,11 @@ export default function ModalDiagnosis({ onApply, onSkip, initialOrg = '', initi
                   <input
                     type="number"
                     className="field-input field-input--num"
-                    value={val}
+                    value={val || ''}
                     min={min}
                     max={max}
                     step={step}
-                    onChange={(e) => setter(+e.target.value)}
+                    onChange={(e) => setter(e.target.value === '' ? 0 : +e.target.value)}
                   />
                 </div>
               ))}

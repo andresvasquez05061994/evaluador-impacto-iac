@@ -7,10 +7,11 @@ export default function InvInput({ label, val, step, sub, onChange }) {
         <input
           type="number"
           className="field-input field-input--num"
-          value={val}
+          value={val || ''}
           min={0}
           step={step}
-          onChange={(e) => onChange(Math.max(0, +e.target.value))}
+          placeholder="Ingrese monto"
+          onChange={(e) => onChange(e.target.value === '' ? 0 : Math.max(0, +e.target.value))}
         />
       </div>
       {sub && <div className="field-hint">{sub}</div>}

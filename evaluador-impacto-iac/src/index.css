@@ -111,6 +111,12 @@ input[type="range"] {
   max-width: 180px;
 }
 
+.app-header__org--placeholder {
+  color: var(--text-faint);
+  font-style: italic;
+  font-weight: 400;
+}
+
 .app-header__center {
   display: flex;
   align-items: stretch;

@@ -41,7 +41,7 @@ export default function App() {
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
   const [diagnosisPrefill, setDiagnosisPrefill] = useState('')
   const [discoverySession, setDiscoverySession] = useState(null)
-  const [orgName, setOrgName] = useState('Su Organización')
+  const [orgName, setOrgName] = useState('')
   const [aiData, setAiData] = useState(null)
   const [processDescription, setProcessDescription] = useState('')
   const [reportError, setReportError] = useState('')
@@ -55,8 +55,8 @@ export default function App() {
   const [docsPerReg, setDocsPerReg] = useState(5)
   const [tRed, setTRed] = useState(70)
   const [eRed, setERed] = useState(85)
-  const [impl, setImpl] = useState(14540900)
-  const [monthly, setMonthly] = useState(1800000)
+  const [impl, setImpl] = useState(0)
+  const [monthly, setMonthly] = useState(0)
   const [customCostItems, setCustomCostItems] = useState([])
   const [customVolumeItems, setCustomVolumeItems] = useState([])
 
@@ -236,7 +236,9 @@ export default function App() {
           <div className="app-header__divider" />
           <div className="app-header__meta">
             <span className="app-header__product">Evaluador de Impacto</span>
-            <span className="app-header__org">{orgName}</span>
+            <span className={`app-header__org${!orgName ? ' app-header__org--placeholder' : ''}`}>
+              {orgName || 'Nombre de la organización'}
+            </span>
           </div>
         </div>
 
@@ -284,6 +286,14 @@ export default function App() {
           <aside className="app-sidebar">
             <div className="sidebar-section">
               <div style={sLabel}>Contexto del proceso</div>
+              <input
+                type="text"
+                className="field-input"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="Nombre de la organización"
+                style={{ marginBottom: 10 }}
+              />
               <textarea
                 className="field-textarea"
                 value={processDescription}

@@ -42,10 +42,11 @@ export default function CustomVolumeItems({ items, onChange, baseHrs, baseErrPct
                     <input
                       type="number"
                       className="field-input field-input--num"
-                      value={item.volume}
+                      value={item.volume || ''}
                       min={0}
                       step={1}
-                      onChange={(e) => updateItem(item.id, { volume: Math.max(0, +e.target.value) })}
+                      placeholder="Uds / mes"
+                      onChange={(e) => updateItem(item.id, { volume: e.target.value === '' ? 0 : Math.max(0, +e.target.value) })}
                     />
                   </div>
                   <div>

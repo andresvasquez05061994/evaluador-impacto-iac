@@ -42,10 +42,11 @@ export default function CustomCostItems({ items, onChange }) {
                   <input
                     type="number"
                     className="field-input field-input--num"
-                    value={item.amount}
+                    value={item.amount || ''}
                     min={0}
                     step={50000}
-                    onChange={(e) => updateItem(item.id, { amount: Math.max(0, +e.target.value) })}
+                    placeholder="Monto"
+                    onChange={(e) => updateItem(item.id, { amount: e.target.value === '' ? 0 : Math.max(0, +e.target.value) })}
                   />
                 </div>
                 <select
