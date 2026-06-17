@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { C } from './constants/colors'
 import { fmtCOP } from './utils/format'
 import { downloadImpactReportDocx } from './utils/generateReportDocx'
 import { loadProjects, addProject, deleteProject, clearProjects } from './utils/projectsStorage'
-import { sLabel } from './styles/layout'
+import { panelPre, sLabel } from './styles/layout'
 import { useImpactCalculations } from './hooks/useImpactCalculations'
+import { useSpeechRecognition } from './hooks/useSpeechRecognition'
 import { useTheme } from './context/ThemeContext'
 import ModuleNav, { DimensionNav, BtnPrimary, BtnSecondary, BtnGhost, StatusChip } from './components/ModuleNav'
 import IacLogo from './components/IacLogo'
@@ -32,6 +33,8 @@ const DIMENSION_TABS = [
   ['eficiencia', 'Eficiencia operativa'],
   ['seguridad', 'Seguridad'],
 ]
+
+const fieldLabel = { ...panelPre, marginBottom: 4, display: 'block' }
 
 export default function App() {
   const { toggle, isDark } = useTheme()
@@ -64,6 +67,15 @@ export default function App() {
     prov, hrs, errPct, costHr, tRed, eRed, impl, monthly, docsPerReg, aiData, customCostItems, customVolumeItems,
   })
 
+  const handleTranscript = useCallback((chunk, isFinal) => {
+    if (!isFinal || !chunk.trim()) return
+    setProcessDescription((prev) => (prev.trim() ? `${prev.trim()} ${chunk.trim()}` : chunk.trim()))
+  }, [])
+
+  const { listening, supported, speechError, toggle: toggleVoice, stop: stopVoice } = useSpeechRecognition({
+    onTranscript: handleTranscript,
+  })
+
   const handleApply = ({ org, processDescription: desc, prov: p, hrs: h, err: e, cost: c, aiData: ad }) => {
     if (org) setOrgName(org)
     if (desc) setProcessDescription(desc)
@@ -86,6 +98,12 @@ export default function App() {
     const t = setTimeout(() => setSaveToast(false), 2500)
     return () => clearTimeout(t)
   }, [saveToast])
+
+  useEffect(() => () => stopVoice(), [stopVoice])
+
+  useEffect(() => {
+    if (module !== 'diagnostico') stopVoice()
+  }, [module, stopVoice])
 
   const handleSaveProject = () => {
     const processType = aiData?.processType || 'Proceso manual'
@@ -294,12 +312,41 @@ export default function App() {
                 placeholder="Nombre de la organización"
                 style={{ marginBottom: 10 }}
               />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4, minWidth: 0 }}>
+                <label style={{ ...fieldLabel, marginBottom: 0, flex: 1, minWidth: 0 }}>Descripción del proceso</label>
+                {supported && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    title={listening ? 'Detener dictado' : 'Dictar descripción por voz'}
+                    onClick={toggleVoice}
+                    style={{ fontSize: 10, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+                  >
+                    <span style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: '50%',
+                      background: listening ? C.negative : 'var(--text-faint)',
+                    }} />
+                    {listening ? 'Escuchando' : 'Dictar'}
+                  </button>
+                )}
+              </div>
               <textarea
                 className="field-textarea"
                 value={processDescription}
                 onChange={(e) => setProcessDescription(e.target.value)}
                 placeholder="Descripción del proceso (mejora el informe ejecutivo)"
+                style={{ borderColor: listening ? C.negative : undefined }}
               />
+              {!supported && (
+                <div className="field-hint" style={{ marginTop: 6 }}>
+                  Dictado por voz disponible en Chrome o Edge.
+                </div>
+              )}
+              {speechError && (
+                <div style={{ fontSize: 11, color: C.negative, marginTop: 6 }}>{speechError}</div>
+              )}
             </div>
 
             <div className="sidebar-section">
