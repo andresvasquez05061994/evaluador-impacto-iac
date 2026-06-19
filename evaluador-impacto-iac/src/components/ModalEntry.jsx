@@ -1,9 +1,13 @@
 import IacLogo from './IacLogo'
+import ModalCloseButton, { useModalEscape } from './ModalCloseButton'
 
-export default function ModalEntry({ onEvaluateImpact, onDiscover }) {
+export default function ModalEntry({ onEvaluateImpact, onDiscover, onClose }) {
+  useModalEscape(onClose)
+
   return (
     <div className="modal-overlay">
       <div className="modal-panel modal-panel--entry">
+        {onClose && <ModalCloseButton onClose={onClose} label="Ir al panel principal" />}
         <div style={{ marginBottom: 14 }}>
           <IacLogo />
         </div>

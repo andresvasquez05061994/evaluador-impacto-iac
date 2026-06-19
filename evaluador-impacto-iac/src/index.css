@@ -567,6 +567,7 @@ input[type="range"] {
 }
 
 .modal-panel {
+  position: relative;
   background: var(--bg2);
   border: 1px solid var(--border-strong);
   border-top: 3px solid var(--accent);
@@ -593,6 +594,39 @@ input[type="range"] {
   color: var(--text-muted);
   margin-bottom: 16px;
   line-height: 1.55;
+}
+
+.modal-panel__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg3);
+  color: var(--text-muted);
+  font-family: var(--font-family);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.modal-panel__close:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--bg4);
+}
+
+.modal-panel__close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .modal-status {

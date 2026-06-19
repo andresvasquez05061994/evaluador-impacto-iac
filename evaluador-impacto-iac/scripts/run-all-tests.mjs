@@ -269,7 +269,7 @@ assertEq('fetchProjects source local', result.source, 'local')
 
 await saveProject(sampleProject)
 result = await fetchProjects()
-assertEq('saveProject', result.projects.length, 1)
+assertEq('fetchProjects sin empresa no lista escenarios', result.projects.length, 0)
 
 result = await fetchProjects({ org: 'Org A' })
 assertEq('fetchProjects por empresa', result.projects.length, 1)
@@ -280,12 +280,12 @@ assertEq('fetchProjects empresa sin resultados', result.projects.length, 0)
 
 const p2 = { ...sampleProject, id: 'p2', org: 'Org B', metrics: { roi: 200 } }
 await saveProject(p2, { replaceId: 'p1' })
-result = await fetchProjects()
+result = await fetchProjects({ org: 'Org B' })
 assertEq('saveProject replaceId', result.projects.length, 1)
 assertEq('replaceId mantiene org B', result.projects[0].org, 'Org B')
 
-await deleteProject('p2')
-result = await fetchProjects()
+await deleteProject('p2', { org: 'Org B' })
+result = await fetchProjects({ org: 'Org B' })
 assertEq('deleteProject', result.projects.length, 0)
 
 await saveProject(sampleProject)
@@ -542,6 +542,7 @@ console.log('\n9. Integridad módulos y componentes')
 const srcRoot = path.join(__dirname, '..', 'src')
 const requiredFiles = [
   'components/ModalEntry.jsx',
+  'components/ModalCloseButton.jsx',
   'components/discovery/DiscoveryWizard.jsx',
   'components/discovery/DiscoveryResults.jsx',
   'panels/PanelDescubrimiento.jsx',
@@ -563,13 +564,22 @@ const moduleNavSrc = fs.readFileSync(path.join(srcRoot, 'components/ModuleNav.js
 assertTrue('ModuleNav — descubrimiento', moduleNavSrc.includes("id: 'descubrimiento'"))
 
 const appSrc = fs.readFileSync(path.join(srcRoot, 'App.jsx'), 'utf8')
+const panelSrc = fs.readFileSync(path.join(srcRoot, 'panels/PanelProyectos.jsx'), 'utf8')
+const modalEntrySrc = fs.readFileSync(path.join(srcRoot, 'components/ModalEntry.jsx'), 'utf8')
+const modalDiagnosisSrc = fs.readFileSync(path.join(srcRoot, 'components/ModalDiagnosis.jsx'), 'utf8')
 assertTrue('App — ModalEntry', appSrc.includes('ModalEntry'))
+assertTrue('App — goToMainPanel', appSrc.includes('goToMainPanel'))
+assertTrue('ModalEntry — botón cerrar', modalEntrySrc.includes('ModalCloseButton'))
+assertTrue('ModalEntry — tecla Escape', modalEntrySrc.includes('useModalEscape'))
+assertTrue('ModalDiagnosis — botón cerrar', modalDiagnosisSrc.includes('ModalCloseButton'))
 assertTrue('App — PanelDescubrimiento', appSrc.includes('PanelDescubrimiento'))
 assertTrue('App — buildDiscoveryDescription', appSrc.includes('buildDiscoveryDescription'))
 assertTrue('App — projectsService', appSrc.includes('projectsService'))
 assertTrue('App — fetchProjects', appSrc.includes('fetchProjects'))
 assertTrue('App — carga portafolio módulo proyectos', appSrc.includes("module !== 'proyectos'"))
 assertFalse('App — sin id portafolio obsoleto', appSrc.includes("module !== 'portafolio'"))
+assertTrue('PanelProyectos — consulta obligatoria por empresa', panelSrc.includes('Seleccione una empresa…'))
+assertFalse('PanelProyectos — sin listado global', panelSrc.includes('Todas las empresas'))
 
 // ── Resumen ────────────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50))

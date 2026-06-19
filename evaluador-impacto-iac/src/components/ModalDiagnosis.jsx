@@ -6,10 +6,11 @@ import { analyzeProcess } from '../services/mistral'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { panelPre } from '../styles/layout'
 import IacLogo from './IacLogo'
+import ModalCloseButton, { useModalEscape } from './ModalCloseButton'
 
 const fieldLabel = { ...panelPre, marginBottom: 4, display: 'block' }
 
-export default function ModalDiagnosis({ onApply, onSkip, initialOrg = '', initialDesc = '', onGoDiscovery }) {
+export default function ModalDiagnosis({ onApply, onSkip, onClose, initialOrg = '', initialDesc = '', onGoDiscovery }) {
   const [modalOrg, setModalOrg] = useState(initialOrg)
   const [modalDesc, setModalDesc] = useState(initialDesc)
   const [aiState, setAiState] = useState('idle')
@@ -37,6 +38,17 @@ export default function ModalDiagnosis({ onApply, onSkip, initialOrg = '', initi
       stopVoice()
     }
   }, [stopVoice])
+
+  const handleClose = useCallback(() => {
+    stopVoice()
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    onClose?.()
+  }, [stopVoice, onClose])
+
+  useModalEscape(onClose ? handleClose : undefined)
 
   const runAI = useCallback(async () => {
     if (!modalDesc.trim() || modalDesc.trim().length < 20) return
@@ -85,7 +97,7 @@ export default function ModalDiagnosis({ onApply, onSkip, initialOrg = '', initi
   return (
     <div className="modal-overlay">
       <div className="modal-panel">
-
+        {onClose && <ModalCloseButton onClose={handleClose} label="Ir al panel principal" />}
         <div style={{ marginBottom: 16 }}>
           <IacLogo />
         </div>

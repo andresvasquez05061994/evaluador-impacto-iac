@@ -256,15 +256,18 @@ export default function PanelProyectos({
 }) {
   const [sortBy, setSortBy] = useState('roi')
   const [search, setSearch] = useState('')
+  const hasOrgQuery = !!orgFilter.trim()
 
   const filtered = useMemo(() => {
+    if (!hasOrgQuery) return []
     const q = search.trim().toLowerCase()
     const base = q ? projects.filter((p) => p.org.toLowerCase().includes(q)) : projects
     return sortProjects(base, sortBy)
-  }, [projects, search, sortBy])
+  }, [projects, search, sortBy, hasOrgQuery])
 
   const summary = useMemo(() => portfolioSummary(projects), [projects])
-  const showFilters = !loading && (projects.length > 0 || orgFilter || organizations.length > 0)
+  const showOrgFilter = !loading && organizations.length > 0 && onOrgFilterChange
+  const showResults = !loading && hasOrgQuery
 
   const handleClear = async () => {
     if (window.confirm('¿Eliminar todos los escenarios guardados? Esta acción no se puede deshacer.')) {
@@ -307,9 +310,11 @@ export default function PanelProyectos({
             {storageSource === 'supabase' ? 'Supabase' : 'Navegador local'}
           </span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-            {projects.length} escenario{projects.length !== 1 ? 's' : ''}
+            {hasOrgQuery
+              ? `${projects.length} escenario${projects.length !== 1 ? 's' : ''}`
+              : 'Seleccione una empresa'}
           </span>
-          {projects.length > 0 && (
+          {hasOrgQuery && projects.length > 0 && (
             <button type="button" className="btn btn--danger" onClick={handleClear}>
               Vaciar portafolio
             </button>
@@ -330,7 +335,26 @@ export default function PanelProyectos({
         </div>
       ) : (
         <>
-          {projects.length > 0 && (
+          {showOrgFilter && (
+            <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                Empresa
+                <select
+                  value={orgFilter}
+                  onChange={(e) => onOrgFilterChange(e.target.value)}
+                  style={selectStyle}
+                  aria-label="Consultar escenarios por empresa"
+                >
+                  <option value="">Seleccione una empresa…</option>
+                  {organizations.map((org) => (
+                    <option key={org} value={org}>{org}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {showResults && projects.length > 0 && (
             <>
               <div style={{
                 display: 'grid',
@@ -354,79 +378,71 @@ export default function PanelProyectos({
               </div>
 
               <ComparisonMatrix projects={projects} />
-            </>
-          )}
 
-          {showFilters && (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-              {organizations.length > 0 && onOrgFilterChange && (
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-                  Empresa
+                  Ordenar
                   <select
-                    value={orgFilter}
-                    onChange={(e) => onOrgFilterChange(e.target.value)}
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
                     style={selectStyle}
                   >
-                    <option value="">Todas las empresas</option>
-                    {organizations.map((org) => (
-                      <option key={org} value={org}>{org}</option>
+                    {SORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
                 </label>
-              )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-                Ordenar
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  style={selectStyle}
-                >
-                  {SORT_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </label>
-              <input
-                type="search"
-                placeholder="Buscar por organización"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  flex: 1,
-                  minWidth: 180,
-                  maxWidth: 320,
-                  background: 'var(--input-bg)',
-                  border: '1px solid var(--input-border)',
-                  borderRadius: 2,
-                  padding: '7px 10px',
-                  fontFamily: FONT,
-                  fontSize: 12,
-                  color: 'var(--text)',
-                  outline: 'none',
-                }}
-              />
-            </div>
+                <input
+                  type="search"
+                  placeholder="Buscar en esta empresa"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    flex: 1,
+                    minWidth: 180,
+                    maxWidth: 320,
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--input-border)',
+                    borderRadius: 2,
+                    padding: '7px 10px',
+                    fontFamily: FONT,
+                    fontSize: 12,
+                    color: 'var(--text)',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            </>
           )}
         </>
       )}
 
-      {!loading && projects.length === 0 ? (
+      {!loading && !hasOrgQuery ? (
         <div style={{ textAlign: 'center', padding: '4rem 2rem', border: '1px solid var(--border)', background: 'var(--bg2)' }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 }}>
-            {orgFilter
-              ? `No hay escenarios para la empresa «${orgFilter}»`
+            {organizations.length > 0
+              ? 'Consulte una empresa para ver sus escenarios'
               : 'No hay escenarios en el portafolio'}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
-            {orgFilter
-              ? 'Pruebe «Todas las empresas» en el filtro superior o guarde un escenario para esta organización.'
+          <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 20, maxWidth: 420, margin: '0 auto 20px' }}>
+            {organizations.length > 0
+              ? 'Use el selector de empresa arriba para cargar los escenarios guardados de esa organización.'
               : 'Complete un diagnóstico en el módulo de evaluación y guarde el escenario para compararlo con otras oportunidades de automatización.'}
           </div>
-          {orgFilter && onOrgFilterChange && (
-            <button type="button" className="btn btn--secondary" style={{ marginBottom: 12 }} onClick={() => onOrgFilterChange('')}>
-              Ver todas las empresas
+          {organizations.length === 0 && onGoToDiagnosis && (
+            <button type="button" className="btn btn--primary" onClick={onGoToDiagnosis}>
+              Ir a diagnóstico
             </button>
           )}
+        </div>
+      ) : !loading && hasOrgQuery && projects.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '4rem 2rem', border: '1px solid var(--border)', background: 'var(--bg2)' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 }}>
+            {`No hay escenarios para la empresa «${orgFilter}»`}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
+            Guarde un escenario desde el módulo de diagnóstico con el nombre de esta organización.
+          </div>
           {onGoToDiagnosis && (
             <button type="button" className="btn btn--primary" onClick={onGoToDiagnosis}>
               Ir a diagnóstico

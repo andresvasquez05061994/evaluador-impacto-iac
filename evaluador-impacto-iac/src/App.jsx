@@ -224,7 +224,7 @@ export default function App() {
 
   const handleDeleteProject = async (id) => {
     try {
-      const next = await deleteProject(id)
+      const next = await deleteProject(id, { org: portfolioOrgFilter })
       setProjects(next)
       const { organizations: orgs } = await fetchProjects({ org: portfolioOrgFilter })
       setOrganizations(orgs)
@@ -287,11 +287,18 @@ export default function App() {
     seguridad: <PanelSeguridad d={d} />,
   }
 
+  const goToMainPanel = () => {
+    setShowEntryModal(false)
+    setShowDiagnosisModal(false)
+    setModule('diagnostico')
+  }
+
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--text)', minHeight: '100vh' }}>
 
       {showEntryModal && (
         <ModalEntry
+          onClose={goToMainPanel}
           onEvaluateImpact={() => {
             setShowEntryModal(false)
             setDiagnosisPrefill('')
@@ -309,6 +316,7 @@ export default function App() {
           initialOrg={orgName}
           initialDesc={diagnosisPrefill}
           onApply={handleApply}
+          onClose={goToMainPanel}
           onGoDiscovery={() => {
             setShowDiagnosisModal(false)
             setDiscoverySession(null)

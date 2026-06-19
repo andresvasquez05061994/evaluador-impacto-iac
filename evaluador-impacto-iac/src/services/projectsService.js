@@ -37,9 +37,9 @@ export function projectToRow(project) {
 }
 
 function filterByOrg(projects, org) {
-  const q = org?.trim().toLowerCase()
-  if (!q) return projects
-  return projects.filter((p) => p.org.toLowerCase().includes(q))
+  const q = org?.trim()
+  if (!q) return []
+  return projects.filter((p) => p.org === q)
 }
 
 function uniqueOrgs(projects) {
@@ -48,24 +48,28 @@ function uniqueOrgs(projects) {
 }
 
 export async function fetchProjects({ org } = {}) {
+  const orgTrim = org?.trim()
+
   if (!isSupabaseConfigured()) {
-    const projects = filterByOrg(loadProjectsLocal(), org)
-    return { projects, organizations: uniqueOrgs(loadProjectsLocal()), source: 'local' }
+    const allLocal = loadProjectsLocal()
+    return {
+      projects: filterByOrg(allLocal, orgTrim),
+      organizations: uniqueOrgs(allLocal),
+      source: 'local',
+    }
   }
 
-  let query = supabase
-    .from('projects')
-    .select('*')
-    .order('saved_at', { ascending: false })
+  let projects = []
+  if (orgTrim) {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('org', orgTrim)
+      .order('saved_at', { ascending: false })
 
-  if (org?.trim()) {
-    query = query.eq('org', org.trim())
+    if (error) throw new Error(error.message)
+    projects = (data ?? []).map(projectFromRow)
   }
-
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
-
-  const projects = (data ?? []).map(projectFromRow)
 
   const { data: orgRows, error: orgError } = await supabase
     .from('projects')
@@ -81,7 +85,8 @@ export async function fetchProjects({ org } = {}) {
 
 export async function saveProject(project, { replaceId } = {}) {
   if (!isSupabaseConfigured()) {
-    return addProjectLocal(project, { replaceId })
+    addProjectLocal(project, { replaceId })
+    return filterByOrg(loadProjectsLocal(), project.org)
   }
 
   if (replaceId) {
@@ -92,19 +97,20 @@ export async function saveProject(project, { replaceId } = {}) {
   const { error } = await supabase.from('projects').upsert(projectToRow(project))
   if (error) throw new Error(error.message)
 
-  const { projects } = await fetchProjects()
+  const { projects } = await fetchProjects({ org: project.org })
   return projects
 }
 
-export async function deleteProject(id) {
+export async function deleteProject(id, { org } = {}) {
   if (!isSupabaseConfigured()) {
-    return deleteProjectLocal(id)
+    const remaining = deleteProjectLocal(id)
+    return filterByOrg(remaining, org)
   }
 
   const { error } = await supabase.from('projects').delete().eq('id', id)
   if (error) throw new Error(error.message)
 
-  const { projects } = await fetchProjects()
+  const { projects } = await fetchProjects({ org })
   return projects
 }
 
