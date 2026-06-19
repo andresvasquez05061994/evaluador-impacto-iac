@@ -224,8 +224,8 @@ try {
   ok('parseAiResponse rechaza estructura inválida')
 }
 
-// ── 5. Almacenamiento proyectos (localStorage mock) ────────────
-console.log('\n5. Portafolio (projectsStorage.js)')
+// ── 5. Portafolio (projectsService + localStorage fallback) ────
+console.log('\n5. Portafolio (projectsService.js)')
 
 const storage = {}
 globalThis.localStorage = {
@@ -234,26 +234,64 @@ globalThis.localStorage = {
   removeItem: (k) => { delete storage[k] },
 }
 
-const { addProject, deleteProject, clearProjects, loadProjects } = await import('../src/utils/projectsStorage.js')
+const {
+  fetchProjects,
+  saveProject,
+  deleteProject,
+  clearProjects,
+  projectFromRow,
+  projectToRow,
+  getStorageSource,
+} = await import('../src/services/projectsService.js')
+const { clearProjects: clearLocal } = await import('../src/utils/projectsStorage.js')
 
-clearProjects()
-assertEq('loadProjects vacío', loadProjects().length, 0)
+clearLocal()
+assertEq('storage source sin Supabase', getStorageSource(), 'local')
 
-const p1 = { id: 'p1', org: 'Org A', savedAt: new Date().toISOString(), metrics: { roi: 100 } }
-addProject(p1)
-assertEq('addProject', loadProjects().length, 1)
+const sampleProject = {
+  id: 'p1',
+  savedAt: new Date().toISOString(),
+  org: 'Org A',
+  sector: 'Retail',
+  processType: 'Vinculación',
+  narrative: 'Proceso manual',
+  params: { prov: 60 },
+  metrics: { roi: 100 },
+}
 
-const p2 = { id: 'p2', org: 'Org B', savedAt: new Date().toISOString(), metrics: { roi: 200 } }
-addProject(p2, { replaceId: 'p1' })
-assertEq('addProject replaceId', loadProjects().length, 1)
-assertEq('replaceId mantiene org B', loadProjects()[0].org, 'Org B')
+let result = await fetchProjects()
+assertEq('fetchProjects vacío', result.projects.length, 0)
+assertEq('fetchProjects source local', result.source, 'local')
 
-deleteProject('p2')
-assertEq('deleteProject', loadProjects().length, 0)
+await saveProject(sampleProject)
+result = await fetchProjects()
+assertEq('saveProject', result.projects.length, 1)
 
-addProject(p1)
-clearProjects()
-assertEq('clearProjects', loadProjects().length, 0)
+result = await fetchProjects({ org: 'Org A' })
+assertEq('fetchProjects por empresa', result.projects.length, 1)
+assertEq('organizations incluye Org A', result.organizations.includes('Org A'), true)
+
+result = await fetchProjects({ org: 'Inexistente' })
+assertEq('fetchProjects empresa sin resultados', result.projects.length, 0)
+
+const p2 = { ...sampleProject, id: 'p2', org: 'Org B', metrics: { roi: 200 } }
+await saveProject(p2, { replaceId: 'p1' })
+result = await fetchProjects()
+assertEq('saveProject replaceId', result.projects.length, 1)
+assertEq('replaceId mantiene org B', result.projects[0].org, 'Org B')
+
+await deleteProject('p2')
+result = await fetchProjects()
+assertEq('deleteProject', result.projects.length, 0)
+
+await saveProject(sampleProject)
+await clearProjects()
+result = await fetchProjects()
+assertEq('clearProjects', result.projects.length, 0)
+
+const row = projectToRow(sampleProject)
+assertEq('projectToRow org', row.org, 'Org A')
+assertEq('projectFromRow org', projectFromRow(row).org, 'Org A')
 
 // ── 6. Flujos de botones (lógica App) ──────────────────────────
 console.log('\n6. Flujos de botones (lógica simulada)')
@@ -504,6 +542,8 @@ const requiredFiles = [
   'components/discovery/DiscoveryResults.jsx',
   'panels/PanelDescubrimiento.jsx',
   'services/discoverAutomations.js',
+  'services/projectsService.js',
+  'lib/supabase.js',
   'hooks/useSpeechRecognition.js',
 ]
 for (const f of requiredFiles) {
@@ -522,6 +562,8 @@ const appSrc = fs.readFileSync(path.join(srcRoot, 'App.jsx'), 'utf8')
 assertTrue('App — ModalEntry', appSrc.includes('ModalEntry'))
 assertTrue('App — PanelDescubrimiento', appSrc.includes('PanelDescubrimiento'))
 assertTrue('App — buildDiscoveryDescription', appSrc.includes('buildDiscoveryDescription'))
+assertTrue('App — projectsService', appSrc.includes('projectsService'))
+assertTrue('App — fetchProjects', appSrc.includes('fetchProjects'))
 
 // ── Resumen ────────────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50))

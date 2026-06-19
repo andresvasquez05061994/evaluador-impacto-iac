@@ -241,7 +241,19 @@ function ProjectCard({ project, rank, onLoad, onDelete }) {
   )
 }
 
-export default function PanelProyectos({ projects, onLoad, onDelete, onClear, onGoToDiagnosis }) {
+export default function PanelProyectos({
+  projects,
+  organizations = [],
+  loading = false,
+  error = '',
+  storageSource = 'local',
+  orgFilter = '',
+  onOrgFilterChange,
+  onLoad,
+  onDelete,
+  onClear,
+  onGoToDiagnosis,
+}) {
   const [sortBy, setSortBy] = useState('roi')
   const [search, setSearch] = useState('')
 
@@ -253,10 +265,22 @@ export default function PanelProyectos({ projects, onLoad, onDelete, onClear, on
 
   const summary = useMemo(() => portfolioSummary(projects), [projects])
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (window.confirm('¿Eliminar todos los escenarios guardados? Esta acción no se puede deshacer.')) {
-      onClear()
+      await onClear()
     }
+  }
+
+  const selectStyle = {
+    background: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    borderRadius: 2,
+    padding: '6px 10px',
+    fontFamily: FONT,
+    fontSize: 12,
+    color: 'var(--text)',
+    outline: 'none',
+    cursor: 'pointer',
   }
 
   return (
@@ -269,7 +293,18 @@ export default function PanelProyectos({ projects, onLoad, onDelete, onClear, on
             Compare escenarios diagnosticados, priorice inversiones y determine cuál proyecto genera el mayor impacto para la organización.
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, paddingTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, paddingTop: 8, flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: '.04em',
+            textTransform: 'uppercase',
+            color: storageSource === 'supabase' ? C.positive : 'var(--text-muted)',
+            background: storageSource === 'supabase' ? 'rgba(45,106,79,.1)' : 'var(--bg4)',
+            padding: '3px 8px',
+          }}>
+            {storageSource === 'supabase' ? 'Supabase' : 'Navegador local'}
+          </span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
             {projects.length} escenario{projects.length !== 1 ? 's' : ''}
           </span>
@@ -281,7 +316,18 @@ export default function PanelProyectos({ projects, onLoad, onDelete, onClear, on
         </div>
       </header>
 
-      {projects.length > 0 && (
+      {error && (
+        <div style={{ fontSize: 12, color: C.negative, padding: '8px 12px', background: 'rgba(155,61,74,.08)', border: '1px solid rgba(155,61,74,.2)', borderRadius: 2, marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="modal-status" style={{ marginBottom: 24 }}>
+          <div className="modal-status__spinner" />
+          <span>Cargando escenarios…</span>
+        </div>
+      ) : projects.length > 0 && (
         <>
           <div style={{
             display: 'grid',
@@ -307,22 +353,27 @@ export default function PanelProyectos({ projects, onLoad, onDelete, onClear, on
           <ComparisonMatrix projects={projects} />
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            {organizations.length > 0 && onOrgFilterChange && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                Empresa
+                <select
+                  value={orgFilter}
+                  onChange={(e) => onOrgFilterChange(e.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="">Todas las empresas</option>
+                  {organizations.map((org) => (
+                    <option key={org} value={org}>{org}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
               Ordenar
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                style={{
-                  background: 'var(--input-bg)',
-                  border: '1px solid var(--input-border)',
-                  borderRadius: 2,
-                  padding: '6px 10px',
-                  fontFamily: FONT,
-                  fontSize: 12,
-                  color: 'var(--text)',
-                  outline: 'none',
-                  cursor: 'pointer',
-                }}
+                style={selectStyle}
               >
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -331,7 +382,7 @@ export default function PanelProyectos({ projects, onLoad, onDelete, onClear, on
             </label>
             <input
               type="search"
-              placeholder="Filtrar por organización"
+              placeholder="Buscar por organización"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
@@ -352,7 +403,7 @@ export default function PanelProyectos({ projects, onLoad, onDelete, onClear, on
         </>
       )}
 
-      {projects.length === 0 ? (
+      {!loading && projects.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 2rem', border: '1px solid var(--border)', background: 'var(--bg2)' }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 }}>No hay escenarios en el portafolio</div>
           <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
@@ -364,7 +415,7 @@ export default function PanelProyectos({ projects, onLoad, onDelete, onClear, on
             </button>
           )}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : !loading && filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: 12, border: '1px solid var(--border)' }}>
           Sin resultados para &ldquo;{search}&rdquo;
         </div>

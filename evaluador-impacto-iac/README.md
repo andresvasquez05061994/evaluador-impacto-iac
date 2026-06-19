@@ -53,6 +53,8 @@ vercel dev
 | Variable | Valor | Entornos |
 |---|---|---|
 | `MISTRAL_API_KEY` | tu key de Mistral | Production, Preview, Development |
+| `VITE_SUPABASE_URL` | URL del proyecto Supabase | Production, Preview, Development |
+| `VITE_SUPABASE_ANON_KEY` | anon/public key de Supabase | Production, Preview, Development |
 
 6. Haz clic en **Deploy**.
 
@@ -99,6 +101,38 @@ La key **nunca** va al bundle del cliente (`MISTRAL_API_KEY` sin prefijo `VITE_`
 
 ---
 
+## Supabase — portafolio de escenarios
+
+El módulo **Portafolio** guarda y consulta escenarios por empresa. Si configuras Supabase, los datos persisten en la nube; si no, usa **localStorage** del navegador (modo local).
+
+### 1. Crear proyecto en Supabase
+
+1. Ve a [supabase.com](https://supabase.com) y crea un proyecto.
+2. En **SQL Editor**, ejecuta el script:
+   `supabase/migrations/001_projects.sql`
+3. En **Project Settings → API**, copia:
+   - **Project URL** → `VITE_SUPABASE_URL`
+   - **anon public** key → `VITE_SUPABASE_ANON_KEY`
+
+### 2. Variables de entorno
+
+En `.env` (local) y en **Vercel → Environment Variables**:
+
+```
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+```
+
+### 3. Uso en la app
+
+- **Guardar escenario** (módulo Diagnóstico) → inserta/actualiza en Supabase.
+- **Portafolio** → lista escenarios, filtra por **empresa** y ordena por ROI u otros criterios.
+- El badge **Supabase** / **Navegador local** indica dónde se están leyendo los datos.
+
+> Las políticas RLS actuales permiten lectura/escritura pública (sin login). Para producción con datos sensibles, configure autenticación y restrinja las políticas en Supabase.
+
+---
+
 ## Comandos
 
 | Comando | Descripción |
@@ -123,8 +157,10 @@ src/
   App.jsx                            ← módulos: Diagnóstico, Descubrimiento, Portafolio
   components/discovery/              ← wizard y resultados
   panels/                            ← dimensiones de impacto
-  services/                          ← mistral.js, discoverAutomations.js
-  utils/                             ← cálculos, informe, storage
+  services/                          ← mistral.js, discoverAutomations.js, projectsService.js
+  lib/supabase.js                    ← cliente Supabase
+  utils/                             ← cálculos, informe, storage local
+supabase/migrations/                 ← schema tabla projects
 vercel.json
 ```
 

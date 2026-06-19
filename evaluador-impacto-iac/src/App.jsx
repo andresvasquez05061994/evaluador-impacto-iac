@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { C } from './constants/colors'
 import { fmtCOP } from './utils/format'
 import { downloadImpactReportDocx } from './utils/generateReportDocx'
-import { loadProjects, addProject, deleteProject, clearProjects } from './utils/projectsStorage'
+import {
+  clearProjects,
+  deleteProject,
+  fetchProjects,
+  getStorageSource,
+  saveProject,
+} from './services/projectsService'
 import { panelPre, sLabel } from './styles/layout'
 import { useImpactCalculations } from './hooks/useImpactCalculations'
 import { useSpeechRecognition } from './hooks/useSpeechRecognition'
@@ -48,7 +54,12 @@ export default function App() {
   const [aiData, setAiData] = useState(null)
   const [processDescription, setProcessDescription] = useState('')
   const [reportError, setReportError] = useState('')
-  const [projects, setProjects] = useState(() => loadProjects())
+  const [projects, setProjects] = useState([])
+  const [organizations, setOrganizations] = useState([])
+  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [projectsError, setProjectsError] = useState('')
+  const [storageSource, setStorageSource] = useState(() => getStorageSource())
+  const [portfolioOrgFilter, setPortfolioOrgFilter] = useState('')
   const [saveToast, setSaveToast] = useState(false)
 
   const [prov, setProv] = useState(60)
@@ -105,19 +116,57 @@ export default function App() {
     if (module !== 'diagnostico') stopVoice()
   }, [module, stopVoice])
 
-  const handleSaveProject = () => {
+  useEffect(() => {
+    if (module !== 'portafolio') return
+
+    let cancelled = false
+
+    async function loadPortfolio() {
+      setProjectsLoading(true)
+      setProjectsError('')
+      try {
+        const { projects: list, organizations: orgs, source } = await fetchProjects({
+          org: portfolioOrgFilter,
+        })
+        if (!cancelled) {
+          setProjects(list)
+          setOrganizations(orgs)
+          setStorageSource(source)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setProjectsError(e.message || 'No se pudieron cargar los escenarios.')
+        }
+      } finally {
+        if (!cancelled) setProjectsLoading(false)
+      }
+    }
+
+    loadPortfolio()
+    return () => { cancelled = true }
+  }, [module, portfolioOrgFilter])
+
+  const handleSaveProject = async () => {
     const processType = aiData?.processType || 'Proceso manual'
     const today = new Date().toISOString().slice(0, 10)
-    const duplicate = projects.find(
-      (p) => p.org === orgName && p.processType === processType && p.savedAt.slice(0, 10) === today,
-    )
 
     let replaceId = null
-    if (duplicate) {
-      const overwrite = window.confirm(
-        'Ya existe un escenario guardado hoy para esta organización y tipo de proceso. ¿Desea sobrescribirlo?',
+    try {
+      const { projects: current } = await fetchProjects({ org: orgName })
+      const duplicate = current.find(
+        (p) => p.org === orgName && p.processType === processType && p.savedAt.slice(0, 10) === today,
       )
-      if (overwrite) replaceId = duplicate.id
+
+      if (duplicate) {
+        const overwrite = window.confirm(
+          'Ya existe un escenario guardado hoy para esta organización y tipo de proceso. ¿Desea sobrescribirlo?',
+        )
+        if (!overwrite) return
+        replaceId = duplicate.id
+      }
+    } catch (e) {
+      window.alert(`No se pudo verificar escenarios existentes: ${e.message}`)
+      return
     }
 
     const project = {
@@ -142,8 +191,15 @@ export default function App() {
       },
     }
 
-    setProjects(addProject(project, { replaceId }))
-    setSaveToast(true)
+    try {
+      const next = await saveProject(project, { replaceId })
+      setProjects(next)
+      setSaveToast(true)
+      const { organizations: orgs } = await fetchProjects({ org: portfolioOrgFilter })
+      setOrganizations(orgs)
+    } catch (e) {
+      window.alert(`No se pudo guardar el escenario: ${e.message}`)
+    }
   }
 
   const handleLoadProject = (project) => {
@@ -164,8 +220,26 @@ export default function App() {
     setTab('economico')
   }
 
-  const handleDeleteProject = (id) => setProjects(deleteProject(id))
-  const handleClearProjects = () => setProjects(clearProjects())
+  const handleDeleteProject = async (id) => {
+    try {
+      const next = await deleteProject(id)
+      setProjects(next)
+      const { organizations: orgs } = await fetchProjects({ org: portfolioOrgFilter })
+      setOrganizations(orgs)
+    } catch (e) {
+      window.alert(`No se pudo eliminar el escenario: ${e.message}`)
+    }
+  }
+
+  const handleClearProjects = async () => {
+    try {
+      const next = await clearProjects()
+      setProjects(next)
+      setOrganizations([])
+    } catch (e) {
+      window.alert(`No se pudo vaciar el portafolio: ${e.message}`)
+    }
+  }
 
   const handleDiscoveryComplete = ({ input, result }) => {
     if (input.org) setOrgName(input.org)
@@ -437,6 +511,12 @@ export default function App() {
           <main className="app-main app-main--portfolio">
             <PanelProyectos
               projects={projects}
+              organizations={organizations}
+              loading={projectsLoading}
+              error={projectsError}
+              storageSource={storageSource}
+              orgFilter={portfolioOrgFilter}
+              onOrgFilterChange={setPortfolioOrgFilter}
               onLoad={handleLoadProject}
               onDelete={handleDeleteProject}
               onClear={handleClearProjects}
