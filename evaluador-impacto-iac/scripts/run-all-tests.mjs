@@ -243,7 +243,11 @@ const {
   projectToRow,
   getStorageSource,
 } = await import('../src/services/projectsService.js')
+const { normalizeSupabaseUrl } = await import('../src/lib/supabase.js')
 const { clearProjects: clearLocal } = await import('../src/utils/projectsStorage.js')
+
+assertEq('normalizeSupabaseUrl quita /rest/v1', normalizeSupabaseUrl('https://x.supabase.co/rest/v1'), 'https://x.supabase.co')
+assertEq('normalizeSupabaseUrl quita slash final', normalizeSupabaseUrl('https://x.supabase.co/'), 'https://x.supabase.co')
 
 clearLocal()
 assertEq('storage source sin Supabase', getStorageSource(), 'local')

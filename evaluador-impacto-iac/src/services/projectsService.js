@@ -59,7 +59,7 @@ export async function fetchProjects({ org } = {}) {
     .order('saved_at', { ascending: false })
 
   if (org?.trim()) {
-    query = query.ilike('org', `%${org.trim()}%`)
+    query = query.eq('org', org.trim())
   }
 
   const { data, error } = await query
