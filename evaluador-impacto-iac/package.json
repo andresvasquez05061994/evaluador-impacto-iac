@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "node scripts/run-all-tests.mjs",
     "test:calc": "node scripts/validate-impact-calculations.mjs",
-    "test:docx": "node scripts/validate-report-docx.mjs"
+    "test:docx": "node scripts/validate-report-docx.mjs",
+    "test:prod": "node scripts/test-production-apis.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
