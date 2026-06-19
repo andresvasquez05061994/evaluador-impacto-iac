@@ -264,6 +264,7 @@ export default function PanelProyectos({
   }, [projects, search, sortBy])
 
   const summary = useMemo(() => portfolioSummary(projects), [projects])
+  const showFilters = !loading && (projects.length > 0 || orgFilter || organizations.length > 0)
 
   const handleClear = async () => {
     if (window.confirm('¿Eliminar todos los escenarios guardados? Esta acción no se puede deshacer.')) {
@@ -327,88 +328,105 @@ export default function PanelProyectos({
           <div className="modal-status__spinner" />
           <span>Cargando escenarios…</span>
         </div>
-      ) : projects.length > 0 && (
+      ) : (
         <>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-            gap: 1,
-            background: 'var(--border)',
-            border: '1px solid var(--border)',
-            marginBottom: 24,
-          }}>
-            {[
-              { label: 'ROI promedio del portafolio', val: `${summary.avgRoi > 0 ? '+' : ''}${summary.avgRoi}%` },
-              { label: 'Ahorro acumulado anual', val: fmtCOP(summary.totalSav) },
-              { label: 'Mejor período de recuperación', val: summary.bestPayback != null ? `Mes ${summary.bestPayback}` : '> 12 meses' },
-              { label: 'Escenarios en evaluación', val: String(summary.count) },
-            ].map(({ label, val }) => (
-              <div key={label} style={{ background: 'var(--bg2)', padding: '12px 14px', minWidth: 0, overflow: 'hidden' }}>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 4, letterSpacing: '.06em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
-                <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{val}</div>
+          {projects.length > 0 && (
+            <>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 1,
+                background: 'var(--border)',
+                border: '1px solid var(--border)',
+                marginBottom: 24,
+              }}>
+                {[
+                  { label: 'ROI promedio del portafolio', val: `${summary.avgRoi > 0 ? '+' : ''}${summary.avgRoi}%` },
+                  { label: 'Ahorro acumulado anual', val: fmtCOP(summary.totalSav) },
+                  { label: 'Mejor período de recuperación', val: summary.bestPayback != null ? `Mes ${summary.bestPayback}` : '> 12 meses' },
+                  { label: 'Escenarios en evaluación', val: String(summary.count) },
+                ].map(({ label, val }) => (
+                  <div key={label} style={{ background: 'var(--bg2)', padding: '12px 14px', minWidth: 0, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 4, letterSpacing: '.06em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+                    <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{val}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <ComparisonMatrix projects={projects} />
+              <ComparisonMatrix projects={projects} />
+            </>
+          )}
 
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-            {organizations.length > 0 && onOrgFilterChange && (
+          {showFilters && (
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+              {organizations.length > 0 && onOrgFilterChange && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Empresa
+                  <select
+                    value={orgFilter}
+                    onChange={(e) => onOrgFilterChange(e.target.value)}
+                    style={selectStyle}
+                  >
+                    <option value="">Todas las empresas</option>
+                    {organizations.map((org) => (
+                      <option key={org} value={org}>{org}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-                Empresa
+                Ordenar
                 <select
-                  value={orgFilter}
-                  onChange={(e) => onOrgFilterChange(e.target.value)}
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
                   style={selectStyle}
                 >
-                  <option value="">Todas las empresas</option>
-                  {organizations.map((org) => (
-                    <option key={org} value={org}>{org}</option>
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
               </label>
-            )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-              Ordenar
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={selectStyle}
-              >
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </label>
-            <input
-              type="search"
-              placeholder="Buscar por organización"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                flex: 1,
-                minWidth: 180,
-                maxWidth: 320,
-                background: 'var(--input-bg)',
-                border: '1px solid var(--input-border)',
-                borderRadius: 2,
-                padding: '7px 10px',
-                fontFamily: FONT,
-                fontSize: 12,
-                color: 'var(--text)',
-                outline: 'none',
-              }}
-            />
-          </div>
+              <input
+                type="search"
+                placeholder="Buscar por organización"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  flex: 1,
+                  minWidth: 180,
+                  maxWidth: 320,
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--input-border)',
+                  borderRadius: 2,
+                  padding: '7px 10px',
+                  fontFamily: FONT,
+                  fontSize: 12,
+                  color: 'var(--text)',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          )}
         </>
       )}
 
       {!loading && projects.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 2rem', border: '1px solid var(--border)', background: 'var(--bg2)' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 }}>No hay escenarios en el portafolio</div>
-          <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
-            Complete un diagnóstico en el módulo de evaluación y guarde el escenario para compararlo con otras oportunidades de automatización.
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 }}>
+            {orgFilter
+              ? `No hay escenarios para la empresa «${orgFilter}»`
+              : 'No hay escenarios en el portafolio'}
           </div>
+          <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
+            {orgFilter
+              ? 'Pruebe «Todas las empresas» en el filtro superior o guarde un escenario para esta organización.'
+              : 'Complete un diagnóstico en el módulo de evaluación y guarde el escenario para compararlo con otras oportunidades de automatización.'}
+          </div>
+          {orgFilter && onOrgFilterChange && (
+            <button type="button" className="btn btn--secondary" style={{ marginBottom: 12 }} onClick={() => onOrgFilterChange('')}>
+              Ver todas las empresas
+            </button>
+          )}
           {onGoToDiagnosis && (
             <button type="button" className="btn btn--primary" onClick={onGoToDiagnosis}>
               Ir a diagnóstico

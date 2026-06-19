@@ -568,6 +568,8 @@ assertTrue('App — PanelDescubrimiento', appSrc.includes('PanelDescubrimiento')
 assertTrue('App — buildDiscoveryDescription', appSrc.includes('buildDiscoveryDescription'))
 assertTrue('App — projectsService', appSrc.includes('projectsService'))
 assertTrue('App — fetchProjects', appSrc.includes('fetchProjects'))
+assertTrue('App — carga portafolio módulo proyectos', appSrc.includes("module !== 'proyectos'"))
+assertFalse('App — sin id portafolio obsoleto', appSrc.includes("module !== 'portafolio'"))
 
 // ── Resumen ────────────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50))

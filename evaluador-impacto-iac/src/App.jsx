@@ -117,7 +117,7 @@ export default function App() {
   }, [module, stopVoice])
 
   useEffect(() => {
-    if (module !== 'portafolio') return
+    if (module !== 'proyectos') return
 
     let cancelled = false
 
@@ -195,7 +195,9 @@ export default function App() {
       const next = await saveProject(project, { replaceId })
       setProjects(next)
       setSaveToast(true)
-      const { organizations: orgs } = await fetchProjects({ org: portfolioOrgFilter })
+      const savedOrg = orgName.trim()
+      if (savedOrg) setPortfolioOrgFilter(savedOrg)
+      const { organizations: orgs } = await fetchProjects({ org: savedOrg || portfolioOrgFilter })
       setOrganizations(orgs)
     } catch (e) {
       window.alert(`No se pudo guardar el escenario: ${e.message}`)
