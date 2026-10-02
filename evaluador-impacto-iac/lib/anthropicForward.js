@@ -4,7 +4,7 @@ export const CONFIG_ERROR_MESSAGE =
   'ANTHROPIC_API_KEY no configurada. Copia .env.example a .env, agrega tu API key (sk-ant-...) y reinicia el servidor.'
 
 export function getApiKey(env = process.env) {
-  return env.ANTHROPIC_API_KEY || env.VITE_ANTHROPIC_API_KEY || ''
+  return env.ANTHROPIC_API_KEY || ''
 }
 
 export async function forwardToAnthropic(body, apiKey) {

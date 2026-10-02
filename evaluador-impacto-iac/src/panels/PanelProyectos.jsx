@@ -270,7 +270,7 @@ export default function PanelProyectos({
   const showResults = !loading && hasOrgQuery
 
   const handleClear = async () => {
-    if (window.confirm('¿Eliminar todos los escenarios guardados? Esta acción no se puede deshacer.')) {
+    if (window.confirm(`¿Eliminar todos los escenarios guardados de «${orgFilter.trim()}»? El resto de empresas no se modifica.`)) {
       await onClear()
     }
   }
@@ -316,7 +316,7 @@ export default function PanelProyectos({
           </span>
           {hasOrgQuery && projects.length > 0 && (
             <button type="button" className="btn btn--danger" onClick={handleClear}>
-              Vaciar portafolio
+              Vaciar esta empresa
             </button>
           )}
         </div>

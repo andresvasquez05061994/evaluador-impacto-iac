@@ -12,7 +12,7 @@ import { createImpactReportDocument } from '../src/utils/generateReportDocx.js'
 import { parseDescription } from '../src/utils/reportContent.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const outPath = path.join(__dirname, '..', 'test-informe-leonisa.docx')
+const outPath = path.join(__dirname, '..', 'test-informe-ejemplo.docx')
 const logoPath = path.join(__dirname, '..', 'public', 'logo-iac.png')
 const logoData = new Uint8Array(fs.readFileSync(logoPath))
 const fontsDir = path.join(__dirname, '..', 'public', 'fonts')
@@ -23,31 +23,30 @@ const reportFonts = {
 }
 console.log('Logo oficial:', logoPath, `(${(logoData.length / 1024).toFixed(0)} KB)`)
 
-const leonisaDesc = `Leonisa S.A.S., líder en la industria textil, busca optimizar y automatizar el proceso de vinculación de terceros. Ingeniería Asistida por Computador propone implementar una plataforma que centralice el registro de proveedores, valide la información requerida y la integre con los sistemas internos de Leonisa.
+const exampleDesc = `Empresa Ejemplo S.A.S., organización ficticia del sector servicios, busca ordenar el registro de solicitudes internas. El ejercicio de prueba propone una plataforma que centralice el formulario, valide documentos y se conecte con un ERP de demostración.
 
 OBJETIVOS ESPECÍFICOS DE LA PROPUESTA
 Automatización y Optimización del Proceso: reducir la carga manual mediante una plataforma centralizada.
-Validación y Control Documental: revisión automática de documentos requeridos en cada vinculación.
-Integración con Sistemas Internos: conexión con ERP de Leonisa para sincronizar datos en tiempo real.
-Trazabilidad del Proceso: registro auditable de cada solicitud dentro del flujo operativo.
-Integración con Plataforma INSPECTOR: conexión mediante BOT con INSPECTOR para validaciones cruzadas.`
+Validación y Control Documental: revisión automática de documentos requeridos en cada solicitud.
+Integración con Sistemas Internos: conexión con un ERP de ejemplo para sincronizar datos de prueba.
+Trazabilidad del Proceso: registro auditable de cada solicitud dentro del flujo operativo.`
 
 const d = calculateImpact({
-  prov: 60, hrs: 8, errPct: 20, costHr: 40000,
-  tRed: 70, eRed: 85, impl: 14540900, monthly: 1800000, docsPerReg: 5,
+  prov: 40, hrs: 4, errPct: 10, costHr: 25000,
+  tRed: 60, eRed: 80, impl: 10000000, monthly: 1000000, docsPerReg: 3,
 })
 
-const parsed = parseDescription(leonisaDesc)
+const parsed = parseDescription(exampleDesc)
 console.log('Narrativa (chars):', parsed.narrative.length)
 console.log('Objetivos:', parsed.objectives.length)
 parsed.objectives.forEach((o, i) => console.log(`  ${i + 1}. ${o.slice(0, 70)}...`))
 
 const doc = createImpactReportDocument({
-  orgName: 'Leonisa S.A.S.',
-  processDescription: leonisaDesc,
+  orgName: 'Empresa Ejemplo S.A.S.',
+  processDescription: exampleDesc,
   d,
-  tRed: 70,
-  eRed: 85,
+  tRed: 60,
+  eRed: 80,
   logoData,
   reportFonts,
 })
@@ -58,7 +57,7 @@ console.log('\nArchivo generado:', outPath, `(${(buffer.length / 1024).toFixed(1
 
 const checks = [
   'Informe Ejecutivo de Impacto',
-  'Leonisa S.A.S.',
+  'Empresa Ejemplo S.A.S.',
   'ESTADO ACTUAL',
   'Objetivos específicos',
   'Automatización y Optimización',

@@ -1,5 +1,6 @@
 /**
- * Prueba APIs en producción (Vercel) y Supabase.
+ * Prueba APIs en producción (Vercel) y que Supabase niegue lectura anónima.
+ * No inserta, actualiza ni borra filas.
  *
  * Uso:
  *   VERCEL_URL=https://tu-app.vercel.app node scripts/test-production-apis.mjs
@@ -50,12 +51,22 @@ async function testSpa() {
   }
   const jsResp = await fetch(`${BASE}${jsMatch[1]}`)
   const js = await jsResp.text()
-  if (js.includes('ydcivpohluwemcrvvoor.supabase.co')) {
-    ok('Supabase embebido en build', 'proyecto ydcivpohluwemcrvvoor detectado')
-  } else if (js.includes('sb_publishable_') || js.match(/createClient\("[^"]+\.supabase\.co"/)) {
-    ok('Supabase embebido en build', 'URL/credenciales detectadas')
+  if (js.includes('service_role') || js.includes('InJvbGUiOiJzZXJ2aWNlX3JvbGUi')) {
+    fail('Bundle sin service role', 'el JavaScript público incluye la service role')
+  } else {
+    ok('Bundle sin service role')
+  }
+
+  if (/sk-ant-[A-Za-z0-9]/.test(js)) {
+    fail('Bundle sin clave de IA', 'hay una clave de Anthropic en el JavaScript público')
+  } else {
+    ok('Bundle sin clave de IA')
+  }
+
+  if (js.includes('.supabase.co')) {
+    ok('Supabase embebido en build', 'URL del proyecto presente')
   } else if (js.includes('createClient') && js.includes('supabase')) {
-    fail('Supabase embebido en build', 'librería incluida pero VITE_SUPABASE_* no están en el build — redeploy tras agregar variables')
+    fail('Supabase embebido en build', 'librería incluida pero VITE_SUPABASE_URL no está en el build — redeploy tras agregar variables')
   } else {
     fail('Supabase embebido en build', 'no detectado')
   }
@@ -117,68 +128,35 @@ async function testSupabaseRest() {
   const headers = {
     apikey: SUPABASE_KEY,
     Authorization: `Bearer ${SUPABASE_KEY}`,
-    'Content-Type': 'application/json',
-    Prefer: 'return=representation',
   }
 
-  const listResp = await fetch(`${SUPABASE_URL}/rest/v1/projects?select=id,org&limit=1`, { headers })
+  const listResp = await fetch(`${SUPABASE_URL}/rest/v1/projects?select=id&limit=1`, { headers })
+  const raw = await listResp.text()
   if (listResp.status === 404) {
-    fail('Supabase tabla projects', '404 — ejecuta supabase/migrations/001_projects.sql')
+    fail('Supabase tabla projects', '404 — ejecuta las migraciones 001 y 002')
     return
   }
-  if (!listResp.ok) {
-    const err = await listResp.text()
-    fail('Supabase lectura', `HTTP ${listResp.status}: ${err.slice(0, 120)}`)
-    return
-  }
-  ok('Supabase lectura', 'SELECT en projects OK')
 
-  const testId = crypto.randomUUID()
-  const now = new Date().toISOString()
-  const insertResp = await fetch(`${SUPABASE_URL}/rest/v1/projects`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      id: testId,
-      saved_at: now,
-      org: 'Prueba API IAC',
-      sector: 'Test',
-      process_type: 'Smoke test',
-      narrative: 'Registro de prueba automatizada',
-      params: { prov: 10 },
-      metrics: { roi: 0 },
-    }),
-  })
-  if (!insertResp.ok) {
-    const err = await insertResp.text()
-    fail('Supabase escritura', `HTTP ${insertResp.status}: ${err.slice(0, 160)}`)
-    return
+  let rowCount = null
+  if (listResp.ok) {
+    try {
+      const parsed = JSON.parse(raw)
+      rowCount = Array.isArray(parsed) ? parsed.length : null
+    } catch {
+      fail('Supabase anon bloqueado', 'respuesta no JSON')
+      return
+    }
   }
-  ok('Supabase escritura', 'INSERT OK')
 
-  const filterResp = await fetch(
-    `${SUPABASE_URL}/rest/v1/projects?org=ilike.*Prueba%20API%20IAC*&select=id,org`,
-    { headers },
-  )
-  if (!filterResp.ok) {
-    fail('Supabase filtro por empresa', `HTTP ${filterResp.status}`)
+  if (listResp.ok && rowCount > 0) {
+    fail('Supabase anon bloqueado', 'la clave anónima leyó filas; aplique 002_projects_rls_auth.sql')
     return
   }
-  const filtered = await filterResp.json()
-  if (!Array.isArray(filtered) || !filtered.some((r) => r.id === testId)) {
-    fail('Supabase filtro por empresa', 'no encontró el registro de prueba')
+
+  if (listResp.ok || listResp.status === 401 || listResp.status === 403) {
+    ok('Supabase anon bloqueado', `HTTP ${listResp.status}, sin filas. No se escribió en la base.`)
   } else {
-    ok('Supabase filtro por empresa', `${filtered.length} registro(s)`)
-  }
-
-  const delResp = await fetch(`${SUPABASE_URL}/rest/v1/projects?id=eq.${testId}`, {
-    method: 'DELETE',
-    headers,
-  })
-  if (delResp.ok || delResp.status === 204) {
-    ok('Supabase eliminación', 'DELETE OK')
-  } else {
-    fail('Supabase eliminación', `HTTP ${delResp.status}`)
+    fail('Supabase anon bloqueado', `HTTP ${listResp.status}`)
   }
 }
 

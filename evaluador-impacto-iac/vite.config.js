@@ -53,9 +53,23 @@ function mistralDevPlugin(apiKey) {
   }
 }
 
+const CLIENT_SECRET_VARS = [
+  'VITE_MISTRAL_API_KEY',
+  'VITE_ANTHROPIC_API_KEY',
+  'VITE_SUPABASE_SERVICE_ROLE_KEY',
+  'VITE_SUPABASE_SERVICE_ROLE',
+]
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiKey = getApiKey(env)
+
+  for (const name of CLIENT_SECRET_VARS) {
+    if (env[name]) {
+      console.warn(`\n  ⚠️  ${name} está definida. Vite la copia al bundle del navegador.`)
+      console.warn('     Quítela. Las claves de IA y la service role solo viven en el servidor, sin prefijo VITE_.\n')
+    }
+  }
 
   return {
     plugins: [react(), mistralDevPlugin(apiKey)],

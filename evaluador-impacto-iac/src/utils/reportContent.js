@@ -50,7 +50,7 @@ export function buildImplementationNotes(d, tRed, eRed) {
     },
     {
       title: 'Trazabilidad, cumplimiento e integración',
-      body: `Automatización ${d.autoLevel}%, índice operativo ${d.efIndex}/100, trazabilidad ${d.traceabilityScore}% y cumplimiento ${d.compScore}/100. Integrar con ERP e INSPECTOR desde la fase de despliegue.`,
+      body: `Automatización ${d.autoLevel}%, índice operativo ${d.efIndex}/100, trazabilidad ${d.traceabilityScore}% y cumplimiento ${d.compScore}/100. Integrar con el ERP y los sistemas internos desde la fase de despliegue.`,
     },
   ]
 }

@@ -4,7 +4,7 @@ export const CONFIG_ERROR_MESSAGE =
   'MISTRAL_API_KEY no configurada. En local: copia .env.example a .env. En Vercel: Project → Settings → Environment Variables.'
 
 export function getApiKey(env = process.env) {
-  return env.MISTRAL_API_KEY || env.VITE_MISTRAL_API_KEY || ''
+  return env.MISTRAL_API_KEY || ''
 }
 
 export function toMistralBody(body) {

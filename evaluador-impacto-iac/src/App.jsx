@@ -9,6 +9,9 @@ import {
   getStorageSource,
   saveProject,
 } from './services/projectsService'
+import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { signOut } from './services/authService'
+import AuthScreen from './components/AuthScreen'
 import { panelPre, sLabel } from './styles/layout'
 import { useImpactCalculations } from './hooks/useImpactCalculations'
 import { useSpeechRecognition } from './hooks/useSpeechRecognition'
@@ -61,6 +64,9 @@ export default function App() {
   const [storageSource, setStorageSource] = useState(() => getStorageSource())
   const [portfolioOrgFilter, setPortfolioOrgFilter] = useState('')
   const [saveToast, setSaveToast] = useState(false)
+  const supabaseOn = isSupabaseConfigured()
+  const [session, setSession] = useState(null)
+  const [authReady, setAuthReady] = useState(() => !supabaseOn)
 
   const [prov, setProv] = useState(60)
   const [hrs, setHrs] = useState(8)
@@ -117,7 +123,17 @@ export default function App() {
   }, [module, stopVoice])
 
   useEffect(() => {
+    if (!supabase) return undefined
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next)
+      setAuthReady(true)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
     if (module !== 'proyectos') return
+    if (supabaseOn && !session?.user) return
 
     let cancelled = false
 
@@ -144,7 +160,7 @@ export default function App() {
 
     loadPortfolio()
     return () => { cancelled = true }
-  }, [module, portfolioOrgFilter])
+  }, [module, portfolioOrgFilter, supabaseOn, session?.user?.id])
 
   const handleSaveProject = async () => {
     const processType = aiData?.processType || 'Proceso manual'
@@ -234,12 +250,27 @@ export default function App() {
   }
 
   const handleClearProjects = async () => {
+    const org = portfolioOrgFilter.trim()
+    if (!org) return
     try {
-      const next = await clearProjects()
-      setProjects(next)
-      setOrganizations([])
+      await clearProjects({ org })
+      setProjects([])
+      const { organizations: orgs } = await fetchProjects({ org: '' })
+      setOrganizations(orgs)
+      setPortfolioOrgFilter('')
     } catch (e) {
       window.alert(`No se pudo vaciar el portafolio: ${e.message}`)
+    }
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      setProjects([])
+      setOrganizations([])
+      setPortfolioOrgFilter('')
+    } catch (e) {
+      window.alert(e.message || 'No se pudo cerrar la sesión.')
     }
   }
 
@@ -291,6 +322,18 @@ export default function App() {
     setShowEntryModal(false)
     setShowDiagnosisModal(false)
     setModule('diagnostico')
+  }
+
+  if (!authReady) {
+    return (
+      <div className="auth-screen">
+        <p className="auth-note">Comprobando sesión…</p>
+      </div>
+    )
+  }
+
+  if (supabaseOn && !session) {
+    return <AuthScreen />
   }
 
   return (
@@ -349,6 +392,21 @@ export default function App() {
         </div>
 
         <div className="app-header__actions">
+          {supabaseOn && (
+            <>
+              <span className="app-header__user" title={session?.user?.email || ''}>
+                {session?.user?.email}
+              </span>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={handleSignOut}
+                style={{ fontSize: 11, padding: '6px 10px' }}
+              >
+                Salir
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="btn btn--ghost"

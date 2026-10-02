@@ -12,8 +12,8 @@ const BASE = {
   costHr: 40000,
   tRed: 70,
   eRed: 85,
-  impl: 14540900,
-  monthly: 1800000,
+  impl: 10000000,
+  monthly: 1000000,
   docsPerReg: 5,
 }
 

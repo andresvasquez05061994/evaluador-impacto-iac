@@ -17,7 +17,15 @@ const env = typeof import.meta !== 'undefined' ? import.meta.env : {}
 const url = normalizeSupabaseUrl(env?.VITE_SUPABASE_URL)
 const anonKey = normalizeSupabaseKey(env?.VITE_SUPABASE_ANON_KEY)
 
-export const supabase = url && anonKey ? createClient(url, anonKey) : null
+export const supabase = url && anonKey
+  ? createClient(url, anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
+    })
+  : null
 
 export function isSupabaseConfigured() {
   return !!supabase
