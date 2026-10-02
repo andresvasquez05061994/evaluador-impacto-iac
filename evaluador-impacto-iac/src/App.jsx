@@ -10,7 +10,8 @@ import {
   saveProject,
 } from './services/projectsService'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import { signOut } from './services/authService'
+import { consumeOAuthCallbackError, signOut } from './services/authService'
+import { ALLOWLIST_DENIED_MESSAGE, isCurrentUserAllowed } from './lib/allowlist'
 import AuthScreen from './components/AuthScreen'
 import { panelPre, sLabel } from './styles/layout'
 import { useImpactCalculations } from './hooks/useImpactCalculations'
@@ -67,6 +68,8 @@ export default function App() {
   const supabaseOn = isSupabaseConfigured()
   const [session, setSession] = useState(null)
   const [authReady, setAuthReady] = useState(() => !supabaseOn)
+  const [authNotice, setAuthNotice] = useState(() => consumeOAuthCallbackError())
+  const sessionAllowed = !session || isCurrentUserAllowed(session.user?.email)
 
   const [prov, setProv] = useState(60)
   const [hrs, setHrs] = useState(8)
@@ -132,8 +135,17 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (!supabaseOn || !session || sessionAllowed) return undefined
+    setAuthNotice(ALLOWLIST_DENIED_MESSAGE)
+    signOut().catch((err) => {
+      setAuthNotice(err.message || ALLOWLIST_DENIED_MESSAGE)
+    })
+    return undefined
+  }, [supabaseOn, session, sessionAllowed])
+
+  useEffect(() => {
     if (module !== 'proyectos') return
-    if (supabaseOn && !session?.user) return
+    if (supabaseOn && (!session?.user || !sessionAllowed)) return
 
     let cancelled = false
 
@@ -160,7 +172,7 @@ export default function App() {
 
     loadPortfolio()
     return () => { cancelled = true }
-  }, [module, portfolioOrgFilter, supabaseOn, session?.user?.id])
+  }, [module, portfolioOrgFilter, supabaseOn, session?.user?.id, sessionAllowed])
 
   const handleSaveProject = async () => {
     const processType = aiData?.processType || 'Proceso manual'
@@ -332,8 +344,8 @@ export default function App() {
     )
   }
 
-  if (supabaseOn && !session) {
-    return <AuthScreen />
+  if (supabaseOn && (!session || !sessionAllowed)) {
+    return <AuthScreen notice={authNotice} />
   }
 
   return (

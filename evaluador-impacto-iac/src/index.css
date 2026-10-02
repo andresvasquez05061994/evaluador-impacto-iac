@@ -1232,6 +1232,32 @@ input[type="range"] {
   color: var(--text-muted);
 }
 
+.auth-google {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 14px;
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 .auth-submit {
   width: 100%;
   margin-top: 6px;

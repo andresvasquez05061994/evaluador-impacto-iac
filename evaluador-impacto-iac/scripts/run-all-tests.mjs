@@ -28,7 +28,8 @@ import { buildDiscoveryUserMessage, DISCOVERY_SYSTEM_PROMPT } from '../src/const
 import { SECTORS, TOOL_OPTIONS, SYSTEM_OPTIONS, INDUSTRY_HINTS } from '../src/constants/industryUseCases.js'
 import { getApiKey as getMistralKey } from '../lib/mistralForward.js'
 import { getApiKey as getAnthropicKey } from '../lib/anthropicForward.js'
-import { mapAuthError } from '../src/services/authService.js'
+import { consumeOAuthCallbackError, mapAuthError } from '../src/services/authService.js'
+import { isEmailAllowed, parseAllowlist } from '../src/lib/allowlist.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const failures = []
@@ -600,6 +601,14 @@ assertTrue('PanelProyectos — consulta obligatoria por empresa', panelSrc.inclu
 assertFalse('PanelProyectos — sin listado global', panelSrc.includes('Todas las empresas'))
 assertTrue('App — pantalla de ingreso', appSrc.includes('AuthScreen'))
 assertTrue('App — cerrar sesión', appSrc.includes('handleSignOut'))
+assertTrue('App — lista de acceso', appSrc.includes('isCurrentUserAllowed'))
+const authScreenSrc = fs.readFileSync(path.join(srcRoot, 'components/AuthScreen.jsx'), 'utf8')
+const authServiceSrc = fs.readFileSync(path.join(srcRoot, 'services/authService.js'), 'utf8')
+assertTrue('Login — botón Google', authScreenSrc.includes('Iniciar sesión con Google'))
+assertTrue('Login — correo y contraseña', authScreenSrc.includes('type="password"'))
+assertTrue('Auth — signInWithOAuth Google', authServiceSrc.includes("provider: 'google'"))
+assertTrue('Auth — redirectTo', authServiceSrc.includes('redirectTo'))
+assertTrue('Cliente Supabase detecta el retorno OAuth', fs.readFileSync(path.join(srcRoot, 'lib/supabase.js'), 'utf8').includes('detectSessionInUrl: true'))
 assertTrue('PanelProyectos — vaciar solo la empresa', panelSrc.includes('Vaciar esta empresa'))
 
 // ── 10. Seguridad: claves, migración y datos de cliente ────────
@@ -612,6 +621,33 @@ assertEq('Anthropic usa clave de servidor', getAnthropicKey({ ANTHROPIC_API_KEY:
 assertEq('Auth — credenciales inválidas', mapAuthError({ message: 'Invalid login credentials' }), 'Correo o contraseña incorrectos.')
 assertEq('Auth — correo sin confirmar', mapAuthError({ message: 'Email not confirmed' }), 'Debe confirmar el correo antes de ingresar.')
 assertEq('Auth — red', mapAuthError({ message: 'Failed to fetch' }), 'No se pudo contactar el servicio de acceso. Revise la conexión y VITE_SUPABASE_URL.')
+assertEq('Auth — Google apagado', mapAuthError({ message: 'Unsupported provider: provider is not enabled' }), 'El ingreso con Google no está habilitado en Supabase.')
+{
+  const previousWindow = globalThis.window
+  globalThis.window = {
+    location: new URL('http://127.0.0.1:5174/?error=access_denied&error_description=user+cancelled'),
+    history: {
+      state: null,
+      replaceState(_state, _title, next) {
+        globalThis.window.location = new URL(next, 'http://127.0.0.1:5174')
+      },
+    },
+  }
+  const first = consumeOAuthCallbackError()
+  const second = consumeOAuthCallbackError()
+  assertEq('Auth — retorno Google cancelado', first, 'Se canceló el ingreso con Google.')
+  assertEq('Auth — retorno Google se lee una sola vez', second, first)
+  assertTrue('Auth — limpia el error de la URL', !globalThis.window.location.search.includes('error'))
+  if (previousWindow === undefined) delete globalThis.window
+  else globalThis.window = previousWindow
+}
+assertEq('Allowlist — vacía niega', isEmailAllowed('ana@empresa.com', { emails: '', domains: '' }), false)
+assertEq('Allowlist — correo exacto', isEmailAllowed('Ana@Empresa.com', { emails: 'ana@empresa.com, otro@x.com', domains: '' }), true)
+assertEq('Allowlist — otro correo no', isEmailAllowed('no@empresa.com', { emails: 'ana@empresa.com', domains: '' }), false)
+assertEq('Allowlist — dominio', isEmailAllowed('ana@empresa.com', { emails: '', domains: '@empresa.com' }), true)
+assertEq('Allowlist — dominio distinto', isEmailAllowed('ana@otro.com', { emails: '', domains: 'empresa.com' }), false)
+assertEq('Allowlist — separadores', parseAllowlist(' ana@empresa.com ; otro@x.com ').length, 2)
+assertEq('Allowlist — sin arroba', isEmailAllowed('no-es-correo', { emails: 'no-es-correo', domains: '' }), false)
 
 const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '002_projects_rls_auth.sql')
 const migrationSql = fs.readFileSync(migrationPath, 'utf8')
@@ -634,6 +670,15 @@ assertTrue('migración 002 revoca anon', /revoke all on table public\.projects f
 assertTrue('migración 002 exige autenticados', migrationSql.includes('TO authenticated'))
 assertTrue('migración 002 usa app_metadata', migrationSql.includes('app_metadata'))
 assertTrue('001 sigue presente', fs.existsSync(path.join(__dirname, '..', 'supabase', 'migrations', '001_projects.sql')))
+
+const allowSql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '003_projects_email_allowlist.sql'), 'utf8')
+for (const [pattern, label] of migrationForbidden) {
+  assertFalse(`migración 003 sin ${label}`, pattern.test(allowSql))
+}
+assertTrue('migración 003 es RESTRICTIVE', /as\s+restrictive/i.test(allowSql))
+assertTrue('migración 003 usa is_email_allowed', allowSql.includes('private.is_email_allowed()'))
+assertFalse('migración 003 no borra políticas de 002', /drop policy if exists "projects_select_owner_or_admin"/i.test(allowSql))
+assertFalse('migración 003 no reescribe projects', /update\s+public\.projects/i.test(allowSql))
 
 const clientLeakTerms = ['service_role', 'SUPABASE_SERVICE_ROLE', 'VITE_MISTRAL_API_KEY', 'VITE_ANTHROPIC_API_KEY']
 const clientFiles = [

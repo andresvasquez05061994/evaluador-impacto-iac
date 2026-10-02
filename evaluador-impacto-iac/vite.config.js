@@ -71,7 +71,13 @@ export default defineConfig(({ mode }) => {
     }
   }
 
+  if (env.VITE_SUPABASE_URL && !env.ALLOWED_EMAILS && !env.ALLOWED_EMAIL_DOMAINS) {
+    console.warn('\n  ⚠️  ALLOWED_EMAILS y ALLOWED_EMAIL_DOMAINS están vacías.')
+    console.warn('     Con Supabase configurado nadie puede entrar hasta definir una de las dos.\n')
+  }
+
   return {
+    envPrefix: ['VITE_', 'ALLOWED_'],
     plugins: [react(), mistralDevPlugin(apiKey)],
     server: {
       port: 5173,
