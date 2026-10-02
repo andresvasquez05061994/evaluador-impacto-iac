@@ -53,11 +53,31 @@ function mistralDevPlugin(apiKey) {
   }
 }
 
+const CLIENT_SECRET_VARS = [
+  'VITE_MISTRAL_API_KEY',
+  'VITE_ANTHROPIC_API_KEY',
+  'VITE_SUPABASE_SERVICE_ROLE_KEY',
+  'VITE_SUPABASE_SERVICE_ROLE',
+]
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiKey = getApiKey(env)
 
+  for (const name of CLIENT_SECRET_VARS) {
+    if (env[name]) {
+      console.warn(`\n  ⚠️  ${name} está definida. Vite la copia al bundle del navegador.`)
+      console.warn('     Quítela. Las claves de IA y la service role solo viven en el servidor, sin prefijo VITE_.\n')
+    }
+  }
+
+  if (env.VITE_SUPABASE_URL && !env.ALLOWED_EMAILS && !env.ALLOWED_EMAIL_DOMAINS) {
+    console.warn('\n  ⚠️  ALLOWED_EMAILS y ALLOWED_EMAIL_DOMAINS están vacías.')
+    console.warn('     Con Supabase configurado nadie puede entrar hasta definir una de las dos.\n')
+  }
+
   return {
+    envPrefix: ['VITE_', 'ALLOWED_'],
     plugins: [react(), mistralDevPlugin(apiKey)],
     server: {
       port: 5173,

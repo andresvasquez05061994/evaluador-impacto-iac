@@ -1,9 +1,9 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import {
   addProject as addProjectLocal,
-  clearProjects as clearProjectsLocal,
   deleteProject as deleteProjectLocal,
   loadProjects as loadProjectsLocal,
+  saveProjects as saveProjectsLocal,
 } from '../utils/projectsStorage.js'
 
 export function getStorageSource() {
@@ -23,8 +23,8 @@ export function projectFromRow(row) {
   }
 }
 
-export function projectToRow(project) {
-  return {
+export function projectToRow(project, ownerId) {
+  const row = {
     id: project.id,
     saved_at: project.savedAt,
     org: project.org ?? '',
@@ -34,6 +34,16 @@ export function projectToRow(project) {
     params: project.params ?? {},
     metrics: project.metrics ?? {},
   }
+  if (ownerId) row.owner_id = ownerId
+  return row
+}
+
+async function requireUserId() {
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data?.user?.id) {
+    throw new Error('Debe iniciar sesión para modificar escenarios.')
+  }
+  return data.user.id
 }
 
 function filterByOrg(projects, org) {
@@ -89,12 +99,14 @@ export async function saveProject(project, { replaceId } = {}) {
     return filterByOrg(loadProjectsLocal(), project.org)
   }
 
+  const ownerId = await requireUserId()
+
   if (replaceId) {
     const { error: deleteError } = await supabase.from('projects').delete().eq('id', replaceId)
     if (deleteError) throw new Error(deleteError.message)
   }
 
-  const { error } = await supabase.from('projects').upsert(projectToRow(project))
+  const { error } = await supabase.from('projects').upsert(projectToRow(project, ownerId))
   if (error) throw new Error(error.message)
 
   const { projects } = await fetchProjects({ org: project.org })
@@ -107,6 +119,7 @@ export async function deleteProject(id, { org } = {}) {
     return filterByOrg(remaining, org)
   }
 
+  await requireUserId()
   const { error } = await supabase.from('projects').delete().eq('id', id)
   if (error) throw new Error(error.message)
 
@@ -114,12 +127,20 @@ export async function deleteProject(id, { org } = {}) {
   return projects
 }
 
-export async function clearProjects() {
-  if (!isSupabaseConfigured()) {
-    return clearProjectsLocal()
+export async function clearProjects({ org } = {}) {
+  const orgTrim = org?.trim()
+  if (!orgTrim) {
+    throw new Error('Indique la empresa cuyos escenarios desea eliminar.')
   }
 
-  const { error } = await supabase.from('projects').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+  if (!isSupabaseConfigured()) {
+    const remaining = loadProjectsLocal().filter((p) => p.org !== orgTrim)
+    saveProjectsLocal(remaining)
+    return []
+  }
+
+  await requireUserId()
+  const { error } = await supabase.from('projects').delete().eq('org', orgTrim)
   if (error) throw new Error(error.message)
 
   return []

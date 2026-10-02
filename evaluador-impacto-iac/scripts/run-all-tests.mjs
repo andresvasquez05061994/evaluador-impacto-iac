@@ -26,6 +26,10 @@ import { buildFallbackDiscovery } from '../src/utils/discoveryFallback.js'
 import { buildDiscoveryDescription } from '../src/utils/buildDiscoveryDescription.js'
 import { buildDiscoveryUserMessage, DISCOVERY_SYSTEM_PROMPT } from '../src/constants/discoveryPrompts.js'
 import { SECTORS, TOOL_OPTIONS, SYSTEM_OPTIONS, INDUSTRY_HINTS } from '../src/constants/industryUseCases.js'
+import { getApiKey as getMistralKey } from '../lib/mistralForward.js'
+import { getApiKey as getAnthropicKey } from '../lib/anthropicForward.js'
+import { consumeOAuthCallbackError, mapAuthError } from '../src/services/authService.js'
+import { isEmailAllowed, parseAllowlist } from '../src/lib/allowlist.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const failures = []
@@ -63,8 +67,8 @@ const BASE = {
   costHr: 40000,
   tRed: 70,
   eRed: 85,
-  impl: 14540900,
-  monthly: 1800000,
+  impl: 10000000,
+  monthly: 1000000,
   docsPerReg: 5,
 }
 
@@ -289,13 +293,28 @@ result = await fetchProjects({ org: 'Org B' })
 assertEq('deleteProject', result.projects.length, 0)
 
 await saveProject(sampleProject)
-await clearProjects()
-result = await fetchProjects()
-assertEq('clearProjects', result.projects.length, 0)
+await saveProject({ ...sampleProject, id: 'p-keep', org: 'Org B' })
+await clearProjects({ org: 'Org A' })
+result = await fetchProjects({ org: 'Org A' })
+assertEq('clearProjects solo la empresa indicada', result.projects.length, 0)
+result = await fetchProjects({ org: 'Org B' })
+assertEq('clearProjects conserva las demás empresas', result.projects.length, 1)
+await clearProjects({ org: 'Org B' })
+
+let clearThrew = false
+try {
+  await clearProjects()
+} catch {
+  clearThrew = true
+}
+assertTrue('clearProjects sin empresa rechaza el borrado', clearThrew)
 
 const row = projectToRow(sampleProject)
 assertEq('projectToRow org', row.org, 'Org A')
+assertEq('projectToRow sin dueño no envía owner_id', row.owner_id, undefined)
 assertEq('projectFromRow org', projectFromRow(row).org, 'Org A')
+const owned = projectToRow(sampleProject, '11111111-1111-1111-1111-111111111111')
+assertEq('projectToRow owner_id', owned.owner_id, '11111111-1111-1111-1111-111111111111')
 
 // ── 6. Flujos de botones (lógica App) ──────────────────────────
 console.log('\n6. Flujos de botones (lógica simulada)')
@@ -402,7 +421,7 @@ const reportFonts = {
 }
 
 const doc = createImpactReportDocument({
-  orgName: 'Leonisa S.A.S.',
+  orgName: 'Empresa Ejemplo S.A.S.',
   processDescription: descWithObj,
   d: empty,
   tRed: 70,
@@ -419,7 +438,7 @@ const docXml = zip.readAsText('word/document.xml')
 const docText = docxPlainText(docXml)
 const checks = [
   'Informe Ejecutivo de Impacto',
-  'Leonisa S.A.S.',
+  'Empresa Ejemplo S.A.S.',
   'ESTADO ACTUAL',
   'Objetivos espec',
   'Conclusión ejecutiva',
@@ -580,6 +599,134 @@ assertTrue('App — carga portafolio módulo proyectos', appSrc.includes("module
 assertFalse('App — sin id portafolio obsoleto', appSrc.includes("module !== 'portafolio'"))
 assertTrue('PanelProyectos — consulta obligatoria por empresa', panelSrc.includes('Seleccione una empresa…'))
 assertFalse('PanelProyectos — sin listado global', panelSrc.includes('Todas las empresas'))
+assertTrue('App — pantalla de ingreso', appSrc.includes('AuthScreen'))
+assertTrue('App — cerrar sesión', appSrc.includes('handleSignOut'))
+assertTrue('App — lista de acceso', appSrc.includes('isCurrentUserAllowed'))
+const authScreenSrc = fs.readFileSync(path.join(srcRoot, 'components/AuthScreen.jsx'), 'utf8')
+const authServiceSrc = fs.readFileSync(path.join(srcRoot, 'services/authService.js'), 'utf8')
+assertTrue('Login — botón Google', authScreenSrc.includes('Iniciar sesión con Google'))
+assertTrue('Login — correo y contraseña', authScreenSrc.includes('type="password"'))
+assertTrue('Auth — signInWithOAuth Google', authServiceSrc.includes("provider: 'google'"))
+assertTrue('Auth — redirectTo', authServiceSrc.includes('redirectTo'))
+assertTrue('Cliente Supabase detecta el retorno OAuth', fs.readFileSync(path.join(srcRoot, 'lib/supabase.js'), 'utf8').includes('detectSessionInUrl: true'))
+assertTrue('PanelProyectos — vaciar solo la empresa', panelSrc.includes('Vaciar esta empresa'))
+
+// ── 10. Seguridad: claves, migración y datos de cliente ────────
+console.log('\n10. Seguridad')
+
+assertEq('Mistral no lee clave con prefijo VITE_', getMistralKey({ VITE_MISTRAL_API_KEY: 'secreto', MISTRAL_API_KEY: '' }), '')
+assertEq('Mistral usa clave de servidor', getMistralKey({ MISTRAL_API_KEY: 'server-key' }), 'server-key')
+assertEq('Anthropic no lee clave con prefijo VITE_', getAnthropicKey({ VITE_ANTHROPIC_API_KEY: 'secreto' }), '')
+assertEq('Anthropic usa clave de servidor', getAnthropicKey({ ANTHROPIC_API_KEY: 'server-key' }), 'server-key')
+assertEq('Auth — credenciales inválidas', mapAuthError({ message: 'Invalid login credentials' }), 'Correo o contraseña incorrectos.')
+assertEq('Auth — correo sin confirmar', mapAuthError({ message: 'Email not confirmed' }), 'Debe confirmar el correo antes de ingresar.')
+assertEq('Auth — red', mapAuthError({ message: 'Failed to fetch' }), 'No se pudo contactar el servicio de acceso. Revise la conexión y VITE_SUPABASE_URL.')
+assertEq('Auth — Google apagado', mapAuthError({ message: 'Unsupported provider: provider is not enabled' }), 'El ingreso con Google no está habilitado en Supabase.')
+{
+  const previousWindow = globalThis.window
+  globalThis.window = {
+    location: new URL('http://127.0.0.1:5174/?error=access_denied&error_description=user+cancelled'),
+    history: {
+      state: null,
+      replaceState(_state, _title, next) {
+        globalThis.window.location = new URL(next, 'http://127.0.0.1:5174')
+      },
+    },
+  }
+  const first = consumeOAuthCallbackError()
+  const second = consumeOAuthCallbackError()
+  assertEq('Auth — retorno Google cancelado', first, 'Se canceló el ingreso con Google.')
+  assertEq('Auth — retorno Google se lee una sola vez', second, first)
+  assertTrue('Auth — limpia el error de la URL', !globalThis.window.location.search.includes('error'))
+  if (previousWindow === undefined) delete globalThis.window
+  else globalThis.window = previousWindow
+}
+assertEq('Allowlist — vacía niega', isEmailAllowed('ana@empresa.com', { emails: '', domains: '' }), false)
+assertEq('Allowlist — correo exacto', isEmailAllowed('Ana@Empresa.com', { emails: 'ana@empresa.com, otro@x.com', domains: '' }), true)
+assertEq('Allowlist — otro correo no', isEmailAllowed('no@empresa.com', { emails: 'ana@empresa.com', domains: '' }), false)
+assertEq('Allowlist — dominio', isEmailAllowed('ana@empresa.com', { emails: '', domains: '@empresa.com' }), true)
+assertEq('Allowlist — dominio distinto', isEmailAllowed('ana@otro.com', { emails: '', domains: 'empresa.com' }), false)
+assertEq('Allowlist — separadores', parseAllowlist(' ana@empresa.com ; otro@x.com ').length, 2)
+assertEq('Allowlist — sin arroba', isEmailAllowed('no-es-correo', { emails: 'no-es-correo', domains: '' }), false)
+
+const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '002_projects_rls_auth.sql')
+const migrationSql = fs.readFileSync(migrationPath, 'utf8')
+const migrationForbidden = [
+  [/drop\s+table/i, 'DROP TABLE'],
+  [/drop\s+column/i, 'DROP COLUMN'],
+  [/truncate/i, 'TRUNCATE'],
+  [/delete\s+from/i, 'DELETE FROM'],
+  [/update\s+public\.projects/i, 'UPDATE de filas'],
+  [/using\s*\(\s*true\s*\)/i, 'USING (true)'],
+  [/with\s+check\s*\(\s*true\s*\)/i, 'WITH CHECK (true)'],
+  [/user_metadata/i, 'user_metadata'],
+  [/service_role/i, 'service_role'],
+]
+for (const [pattern, label] of migrationForbidden) {
+  assertFalse(`migración 002 sin ${label}`, pattern.test(migrationSql))
+}
+assertTrue('migración 002 agrega owner_id', migrationSql.includes('ADD COLUMN IF NOT EXISTS owner_id'))
+assertTrue('migración 002 revoca anon', /revoke all on table public\.projects from public, anon/i.test(migrationSql))
+assertTrue('migración 002 exige autenticados', migrationSql.includes('TO authenticated'))
+assertTrue('migración 002 usa app_metadata', migrationSql.includes('app_metadata'))
+assertTrue('001 sigue presente', fs.existsSync(path.join(__dirname, '..', 'supabase', 'migrations', '001_projects.sql')))
+
+const allowSql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '003_projects_email_allowlist.sql'), 'utf8')
+for (const [pattern, label] of migrationForbidden) {
+  assertFalse(`migración 003 sin ${label}`, pattern.test(allowSql))
+}
+assertTrue('migración 003 es RESTRICTIVE', /as\s+restrictive/i.test(allowSql))
+assertTrue('migración 003 usa is_email_allowed', allowSql.includes('private.is_email_allowed()'))
+assertFalse('migración 003 no borra políticas de 002', /drop policy if exists "projects_select_owner_or_admin"/i.test(allowSql))
+assertFalse('migración 003 no reescribe projects', /update\s+public\.projects/i.test(allowSql))
+
+const clientLeakTerms = ['service_role', 'SUPABASE_SERVICE_ROLE', 'VITE_MISTRAL_API_KEY', 'VITE_ANTHROPIC_API_KEY']
+const clientFiles = [
+  'src/lib/supabase.js',
+  'src/services/projectsService.js',
+  'src/services/mistral.js',
+  'src/services/anthropic.js',
+  'src/services/discoverAutomations.js',
+]
+for (const rel of clientFiles) {
+  const src = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8')
+  for (const term of clientLeakTerms) {
+    assertFalse(`${rel} sin ${term}`, src.includes(term))
+  }
+}
+
+function walkRepo(dir, acc = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.git') continue
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) walkRepo(full, acc)
+    else acc.push(full)
+  }
+  return acc
+}
+
+const sensitiveNeedles = [
+  'Leon' + 'isa',
+  'ydcivpohluwemcrv' + 'voor',
+  'evaluador-impacto-iac-' + 'e85c',
+  '14540' + '900',
+  'INSPEC' + 'TOR',
+]
+const skipExt = new Set(['.ttf', '.png', '.woff', '.woff2'])
+const repoRoot = path.join(__dirname, '..')
+let sensitiveHits = 0
+for (const file of walkRepo(repoRoot)) {
+  if (skipExt.has(path.extname(file).toLowerCase())) continue
+  const text = fs.readFileSync(file)
+  const asString = text.toString('utf8')
+  for (const needle of sensitiveNeedles) {
+    if (asString.includes(needle)) {
+      sensitiveHits += 1
+      fail('sin dato de cliente', `${path.relative(repoRoot, file)} contiene un identificador retirado`)
+    }
+  }
+}
+assertEq('árbol sin identificadores de cliente', sensitiveHits, 0)
 
 // ── Resumen ────────────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50))
